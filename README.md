@@ -1,2 +1,2 @@
 # calc
-simple cli calculator in C
+calc is a simple cli calculator that operates on numbers sequentialy
