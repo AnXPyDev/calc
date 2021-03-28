@@ -2,6 +2,8 @@
 #include <string.h>
 #include <stdlib.h>
 #include <math.h>
+#include <memory.h>
+#include <malloc.h>
 
 typedef double (*operation_fb)(double, double);
 typedef double (*operation_fu)(double);
@@ -93,11 +95,19 @@ struct operation getfop(char *opname) {
 	return ret;
 }
 
-int imode(int, int, int, char **);
-int fmode(int, double, int, char **);
+char _ret_ok;
+char *ret_ok = &_ret_ok;
 
-int imode(int init, int initval, int argc, char **argv) {
-	int reg[2];
+void *imode(int, int, int*, char***);
+void *fmode(int, double, int*, char***);
+void *hexmode(int, int, int*, char***);
+void *submode(void*, void*, int*, char***);
+
+void *imode(int init, int initval, int *argcp, char ***argvp) {
+	int argc = *argcp;
+	char **argv = *argvp;
+
+	int reg[2] = {0, 0};
 	int *regptr = &reg[0];
 	if (init) {
 		regptr++;
@@ -110,16 +120,17 @@ int imode(int init, int initval, int argc, char **argv) {
 		argv++;
 		argc--;
 		if (arg[0] >= 48 && arg[0] <= 57) {
-			*regptr = atof(arg);
+			*regptr = atoi(arg);
 			regptr++;
 			if (regptr == &reg[1] + 1) {
+				binop:;
 				if (op.optype == optype_b && op.op != NULL) {
 					operation_ib fptr = op.op;
 					reg[0] = fptr(reg[0], reg[1]);
 					regptr = &reg[1];
 				} else {
 					fprintf(stderr, "No operation loaded\n");
-					return 1;
+					return NULL;
 				}
 			} else {
 				if (op.optype == optype_u && op.op != NULL) {
@@ -128,15 +139,36 @@ int imode(int init, int initval, int argc, char **argv) {
 					regptr = &reg[1];
 				}
 			}
+		} else if (arg[0] == '[') {
+			submode(&imode, regptr, &argc, &argv);
+			regptr++;
+			if (regptr == &reg[2]) {
+				goto binop;
+			}
+		} else if (arg[0] == ']') {
+			char *ret = malloc(sizeof(void*) + sizeof(int));
+			*((void**)ret) = &imode;
+			*((int*)(ret + sizeof(void*))) = reg[0];
+			*argcp = argc;
+			*argvp = argv;
+			return ret;
 		} else if (arg[0] == '@') {
 			if (strcmp(arg, "@f") == 0) {
-				return fmode(1, (float)reg[0], argc, argv);
+				void *stat = fmode(1, (double)reg[0], &argc, &argv);
+				*argcp = argc;
+				*argvp = argv;
+				return stat;
+			} else if (strcmp(arg, "@x") == 0) {
+				void *stat = hexmode(1, reg[0], &argc, &argv);
+				*argcp = argc;
+				*argvp = argv;
+				return stat;
 			}
 		} else {
 			op = getiop(arg);
 			if (op.op == NULL) {
 				fprintf(stderr, "Invalid operation %s\n", arg);
-				return 1;
+				return NULL;
 			}
 			if (op.optype == optype_u && regptr == &reg[1]) {
 				operation_iu fptr = op.op;
@@ -151,8 +183,10 @@ int imode(int init, int initval, int argc, char **argv) {
 	return 0;
 }
 
-int fmode(int init, double initval, int argc, char **argv) {
-	double reg[2];
+void *fmode(int init, double initval, int *argcp, char ***argvp) {
+	int argc = *argcp;
+	char **argv = *argvp;
+	double reg[2] = {0, 0};
 	double *regptr = &reg[0];
 	if (init) {
 		regptr++;
@@ -164,17 +198,18 @@ int fmode(int init, double initval, int argc, char **argv) {
 		char *arg = *argv;
 		argv++;
 		argc--;
-		if (arg[0] >= 48 && arg[0] <= 57) {
+		if (arg[0] >= '0' && arg[0] <= '9') {
 			*regptr = atof(arg);
 			regptr++;
 			if (regptr == &reg[1] + 1) {
+				binop:;
 				if (op.optype == optype_b && op.op != NULL) {
 					operation_fb fptr = op.op;
 					reg[0] = fptr(reg[0], reg[1]);
 					regptr = &reg[1];
 				} else {
 					fprintf(stderr, "No operation loaded\n");
-					return 1;
+					return NULL;
 				}
 			} else {
 				if (op.optype == optype_u && op.op != NULL) {
@@ -185,13 +220,34 @@ int fmode(int init, double initval, int argc, char **argv) {
 			}
 		} else if (arg[0] == '@') {
 			if (strcmp(arg, "@i") == 0) {
-				return imode(1, (int)reg[0], argc, argv);
+				void *stat = imode(1, (int)reg[0], &argc, &argv);
+				*argcp = argc;
+				*argvp = argv;
+				return stat;
+			} else if (strcmp(arg, "@x") == 0) {
+				void *stat = hexmode(1, (int)reg[0], &argc, &argv);
+				*argcp = argc;
+				*argvp = argv;
+				return stat;
 			}
+		} else if (arg[0] == '[') {
+			submode(&fmode, regptr, &argc, &argv);
+			regptr++;
+			if (regptr == &reg[2]) {
+				goto binop;
+			}
+		} else if (arg[0] == ']') {
+			char *ret = malloc(sizeof(void*) + sizeof(int));
+			*((void**)ret) = &fmode;
+			*((double*)(ret + sizeof(void*))) = reg[0];
+			*argcp = argc;
+			*argvp = argv;
+			return ret;
 		} else {
 			op = getfop(arg);
 			if (op.op == NULL) {
 				fprintf(stderr, "Invalid operation %s\n", arg);
-				return 1;
+				return NULL;
 			}
 			if (op.optype == optype_u && regptr == &reg[1]) {
 				operation_fu fptr = op.op;
@@ -206,20 +262,123 @@ int fmode(int init, double initval, int argc, char **argv) {
 	return 0;
 }
 
+void *hexmode(int init, int initval, int *argcp, char ***argvp) {
+	int argc = *argcp;
+	char **argv = *argvp;
+	int reg = 0;
+
+	if (init) {
+		reg = initval;
+	}
+
+	while (argc > 0) {
+		char *arg = *argv;
+		argv++;
+		argc--;
+
+
+		if (arg[0] == '@') {
+			if (strcmp(arg, "@i") == 0) {
+				void *stat = imode(1, reg, &argc, &argv);
+				*argcp = argc;
+				*argvp = argv;
+				return stat;
+			} else if (strcmp(arg, "@f") == 0) {
+				void *stat = fmode(1, (double)reg, &argc, &argv);
+				*argcp = argc;
+				*argvp = argv;
+				return stat;
+			}
+		} else if (arg[0] == '[') {
+			submode(&hexmode, &reg, &argc, &argv);
+		} else if (arg[0] == ']') {
+			char *ret = malloc(sizeof(void*) + sizeof(int));
+			*((void**)ret) = (void*)&hexmode;
+			*((int*)(ret + sizeof(void*))) = reg;
+			*argcp = argc;
+			*argvp = argv;
+			return ret;
+		} else {
+			if (arg[0] == '#') {
+				arg++;
+			}
+			sscanf(arg, "%x", &reg);
+		}
+	}
+
+	printf("%X\n", reg);
+
+	return 0;
+}
+
+void *submode(void *caller, void *ret, int *argcp, char ***argvp) {
+	int argc = *argcp;
+	char **argv = *argvp;
+
+	void *returned = NULL;
+
+	char *arg = *argv;
+
+	if (arg[0] == '@') {
+		argc--;
+		argv++;
+		if (strcmp(arg, "@i") == 0) {
+			returned = imode(0, 0, &argc, &argv);
+		} else if (strcmp(arg, "@x") == 0) {
+			returned = hexmode(0, 0, &argc, &argv);
+		} else {
+			returned = fmode(0, 0, &argc, &argv);
+		}
+	} else {
+		returned = fmode(0, 0, &argc, &argv);
+	}
+
+	void *returner = *(void**)returned;
+	void *retval = (returned + sizeof(void*));
+
+	if (caller == &imode || caller == &hexmode) {
+		int *rp = (int*)ret;
+		if (returner == &imode || returner == &hexmode) {
+			*rp = *(int*)retval;
+		} else if (returner == &fmode) {
+			*rp = (int)(*(double*)retval);
+		}
+	} else if (caller == &fmode) {
+		double *rp = (double*)ret;
+		if (returner == &imode || returned == &hexmode) {
+			*rp = (double)(*(int*)retval);
+		} else if (returner == &fmode) {
+			*rp = *(double*)retval;
+		}
+	}
+
+	free(returned);
+
+	*argcp = argc;
+	*argvp = argv;
+	return ret_ok;
+}
+
 int main(int argc, char **argv) {
 	if (argc < 2) {
 		fprintf(stderr, "No arguments provided");
 		return 1;
 	}
 
-	
-	if (argv[1][0] == '@') {
-		if (strcmp(argv[1], "@i") == 0) {
-			return imode(0, 0, argc - 2, argv + 2);
+	argc--;
+	argv++;
+	char *arg = *argv;
+	if (arg[0] == '@') {
+		argc--;
+		argv++;
+		if (strcmp(arg, "@x") == 0) {
+			return hexmode(0, 0, &argc, &argv) == NULL;
+		} else if (strcmp(arg, "@i") == 0) {
+			return imode(0, 0, &argc, &argv) == NULL;
 		} else {
-			return fmode(0, 0, argc - 2, argv + 2);
+			return fmode(0, 0, &argc, &argv) == NULL;
 		}
 	}
 
-	return fmode(0, 0, argc - 1, argv + 1);
+	return fmode(0, 0, &argc, &argv) == NULL;
 }

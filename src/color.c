@@ -92,3 +92,35 @@ struct RGB hsltorgb(struct HSL color) {
 
 	return ret;
 }
+
+double clamp(double a, double min, double max) {
+	if (a < min) {
+		return min;
+	} else if (a > max) {
+		return max;
+	}
+	return a;
+}
+
+double wrap(double a, double min, double max) {
+	if (a < min) {
+		return a + (max - min);
+	} else if (a > max) {
+		return a - (max - min);
+	}	
+	return a;
+}
+
+struct RGB rgbclamp(struct RGB color) {
+	color.r = clamp(color.r, 0, 1);
+	color.g = clamp(color.g, 0, 1);
+	color.b = clamp(color.b, 0, 1);
+	return color;
+}
+
+struct HSL hslclamp(struct HSL color) {
+	color.h = wrap(color.h, 0, 1);
+	color.s = clamp(color.s, 0, 1);
+	color.l = clamp(color.l, 0, 1);
+	return color;
+}
