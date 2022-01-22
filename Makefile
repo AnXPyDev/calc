@@ -1,10 +1,14 @@
 CC=gcc
+BINDEPS=src/color.h src/colormode.h src/imode.h src/fmode.h src/hexmode.h src/submode.h
+FLAGS=-O3
 
-main: main.o
-	$(CC) build/main.o -lm -o build/calc
+main: calc
 
-main.o: src/main.c
-	$(CC) -O2 -c src/main.c -o build/main.o
+calc: $(BINDEPS)
+	$(CC) -Wall $(FLAGS) -lm src/main.c -o calc
+
+install: calc
+	cp ./calc /usr/bin/calc
 
 init:
 	mkdir build
