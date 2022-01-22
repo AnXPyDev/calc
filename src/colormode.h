@@ -89,6 +89,14 @@ int color_get_element_index(char *str) {
 	return -1;
 }
 
+struct colormode_sub_return {
+	enum { colormode_sub_return_f, colormode_sub_return_cv } type;
+	union {
+		double f;
+		ColorValue cv;
+	} val;
+};
+
 
 void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 	int argc = *argcp;
@@ -120,7 +128,8 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 		
 		if (arg[0] >= '0' && arg[0] <= '9') {
 			freg = atof(arg);
-
+			
+			freg_loaded:;
 			if (element) {
 				if (op.optype == optype_b && op.op != NULL) {
 					operation_fb fptr = op.op;
@@ -164,6 +173,8 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 			element = NULL;
 			*cregptr = colorvalfromhex(arg);
 			cregptr++;
+
+			creg_loaded:;
 			if (cregptr == &creg[2]) {
 				if (op.optype == optype_b && op.op != NULL) {
 					operation_fb fptr = op.op;
@@ -251,6 +262,38 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 				return stat;
 			}
 		} else if (arg[0] == '[') {
+			struct colormode_sub_return ret;
+			submode(&colormode, &ret, &argc, &argv);
+			
+			if (ret.type == colormode_sub_return_f) {
+				freg = ret.val.f;
+				fprintf(stderr, "sub returned f %f\n", freg);
+				goto freg_loaded;
+			} else if (ret.type == colormode_sub_return_cv) {
+				fprintf(stderr, "sub returned c\n");
+				if (cregptr == &creg[2]) {
+					fprintf(stderr, "Trying to push third value onto register at \"%s\" %i\n", arg, argc);
+					return NULL;
+				}
+				*cregptr = ret.val.cv;
+				cregptr++;
+
+				goto creg_loaded;
+			}
+		} else if (arg[0] == ']') {
+			char *ret = malloc(sizeof(void*) + sizeof(struct colormode_sub_return));
+			*(void**)ret = &colormode;
+			struct colormode_sub_return *cret = (struct colormode_sub_return*)(ret + sizeof(void*));
+			if (element) {
+				cret->type = colormode_sub_return_f;
+				cret->val.f = *element;
+			} else {
+				cret->type = colormode_sub_return_cv;
+				cret->val.cv = creg[0];
+			}
+			*argcp = argc;
+			*argvp = argv;
+			return ret;
 		} else {
 			op = getcop(arg);
 			if (op.op == NULL) {
