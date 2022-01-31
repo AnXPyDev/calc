@@ -207,10 +207,9 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 					creg[0] = hsltorgb(creg[0]);
 					creg[1] = hsltorgb(creg[1]);
 				}
-				creg[0].val[3] = 1.f;
-				creg[1].val[3] = 1.f;
 				color_type = RGB;
 				normalizecolor(&creg[0], color_type);
+				element = NULL;
 				continue;
 			} else if (strcmp(arg, "@rgba") == 0) {
 				if (color_type == HSL || color_type == HSLA) {
@@ -219,16 +218,16 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 				}
 				color_type = RGBA;
 				normalizecolor(&creg[0], color_type);
+				element = NULL;
 				continue;
 			} else if (strcmp(arg, "@hsl") == 0) {
 				if (color_type == RGB || color_type == RGBA) {
 					creg[0] = rgbtohsl(creg[0]);
 					creg[1] = rgbtohsl(creg[1]);
 				}
-				creg[0].val[3] = 1.f;
-				creg[1].val[3] = 1.f;
 				color_type = HSL;
 				normalizecolor(&creg[0], color_type);
+				element = NULL;
 				continue;
 			} else if (strcmp(arg, "@hsla") == 0) {
 				if (color_type == RGB || color_type == RGBA) {
@@ -237,6 +236,7 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 				}
 				color_type = HSLA;
 				normalizecolor(&creg[0], color_type);
+				element = NULL;
 				continue;
 			}
 
@@ -267,10 +267,8 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 			
 			if (ret.type == colormode_sub_return_f) {
 				freg = ret.val.f;
-				fprintf(stderr, "sub returned f %f\n", freg);
 				goto freg_loaded;
 			} else if (ret.type == colormode_sub_return_cv) {
-				fprintf(stderr, "sub returned c\n");
 				if (cregptr == &creg[2]) {
 					fprintf(stderr, "Trying to push third value onto register at \"%s\" %i\n", arg, argc);
 					return NULL;

@@ -15,8 +15,8 @@ typedef struct {
 	ColorValue val;
 } Color;
 
-ColorValue color_val_zero = { {0,0,0,0 } };
-Color color_zero = {RGBA, { {0,0,0,0 } }};
+ColorValue color_val_zero = { {0.f,0.f,0.f,1.f } };
+Color color_zero = {RGBA, { {0.f,0.f,0.f,1.f } }};
 
 double *maxrgb(ColorValue *color) {
 	return color->val[0] > color->val[1] ? (color->val[0] > color->val[2] ? &color->val[0] : &color->val[2]) : (color->val[1] > color->val[2] ? &color->val[1] : &color->val[2]);
