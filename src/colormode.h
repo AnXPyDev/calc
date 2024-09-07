@@ -1,5 +1,5 @@
 enum color_optype_e {
-	color_optype_err, color_optype_cc, color_optype_ccf, color_optype_ef, color_optype_cf
+	color_optype_err, color_optype_cc, color_optype_ccf, color_optype_ef, color_optype_cf, color_optype_cfa
 };
 
 struct color_operation {
@@ -41,10 +41,10 @@ ColorValue color_opblend(ColorValue a, ColorValue b, double f) {
 	ret.val[3] = lerp(a.val[3], b.val[3], f);
 
 	return ret;
-	
 }
 
 typedef ColorValue (*color_operation_ccf)(ColorValue, ColorValue, double);
+typedef ColorValue (*color_operation_cfa)(ColorValue, double);
 
 struct color_operation getcop(char *opname) {
 	struct color_operation ret = {0, 0, NULL};
@@ -69,6 +69,9 @@ struct color_operation getcop(char *opname) {
 	} else if (strcmp(opname, "blend") == 0) {
 		ret.color_optype = color_optype_ccf;
 		ret.op = color_opblend;
+	} else if (strcmp(opname, "shift") == 0) {
+		ret.color_optype = color_optype_cfa;
+		ret.op = &applyHueRotateFilter;
 	}
 	return ret;
 }
@@ -151,18 +154,18 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 					fprintf(stderr, "No suitable operation loaded at \"%s\" %i\n", arg, argc);
 					return NULL;
 				}
-			} else {
-				if (op.color_optype == color_optype_cf && op.optype == optype_b && op.op != NULL) {
-					operation_fb fptr = op.op;
-					creg[0] = color_opcf(creg[0], freg, fptr);
-					cregptr = &creg[1];
-					op = color_op_zero;
-					normalizecolor(&creg[0], color_type);
-				} else {
-					fprintf(stderr, "No suitable operation loaded at \"%s\" %i\n", arg, argc);
-					return NULL;
-				}
-
+			} else if (op.color_optype == color_optype_cf && op.optype == optype_b && op.op != NULL) {
+				operation_fb fptr = op.op;
+				creg[0] = color_opcf(creg[0], freg, fptr);
+				cregptr = &creg[1];
+				op = color_op_zero;
+				normalizecolor(&creg[0], color_type);
+			} else if (op.color_optype == color_optype_cfa && op.op != NULL) {
+				color_operation_cfa fptr = op.op;
+				creg[0] = fptr(creg[0], freg);
+				cregptr = &creg[1];
+				op = color_op_zero;
+				normalizecolor(&creg[0], color_type);
 			}
 
 		} else if (arg[0] == '#') {
@@ -206,6 +209,9 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 				if (color_type == HSL || color_type == HSLA) {
 					creg[0] = hsltorgb(creg[0]);
 					creg[1] = hsltorgb(creg[1]);
+				} else if (color_type == HSLUV) {
+					creg[0] = hsluvtorgb(creg[0]);
+					creg[1] = hsluvtorgb(creg[1]);
 				}
 				color_type = RGB;
 				normalizecolor(&creg[0], color_type);
@@ -215,6 +221,9 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 				if (color_type == HSL || color_type == HSLA) {
 					creg[0] = hsltorgb(creg[0]);
 					creg[1] = hsltorgb(creg[1]);
+				} else if (color_type == HSLUV) {
+					creg[0] = hsluvtorgb(creg[0]);
+					creg[1] = hsluvtorgb(creg[1]);
 				}
 				color_type = RGBA;
 				normalizecolor(&creg[0], color_type);
@@ -235,6 +244,15 @@ void *colormode(int init, Color initcolor, int *argcp, char ***argvp) {
 					creg[1] = rgbtohsl(creg[1]);
 				}
 				color_type = HSLA;
+				normalizecolor(&creg[0], color_type);
+				element = NULL;
+				continue;
+			} else if (strcmp(arg, "@hsluv") == 0) {
+				if (color_type == RGB || color_type == RGBA) {
+					creg[0] = rgbtohsluv(creg[0]);
+					creg[1] = rgbtohsluv(creg[1]);
+				}
+				color_type = HSLUV;
 				normalizecolor(&creg[0], color_type);
 				element = NULL;
 				continue;
